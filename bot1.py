@@ -1,5 +1,6 @@
 import telebot
 import requests
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 BOT_TOKEN = '7644704042:AAFlzIg5HgXOCuYZd7zEE5uPbbXtRdI5POI'
 CHANNEL_1 = '@birdvpn1'
@@ -7,6 +8,7 @@ CHANNEL_2 = '@rahimavazzadeh'
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
+# تابع چک عضویت
 def is_user_member(user_id):
     try:
         status1 = bot.get_chat_member(CHANNEL_1, user_id).status
@@ -15,31 +17,72 @@ def is_user_member(user_id):
     except:
         return False
 
+# دکمه‌های شیشه‌ای کانال‌ها
+def join_keyboard():
+    markup = InlineKeyboardMarkup()
+    markup.row_width = 1
+    markup.add(
+        InlineKeyboardButton("📢 عضویت در کانال ۱", url=f"https://t.me/{CHANNEL_1[1:]}"),
+        InlineKeyboardButton("📢 عضویت در کانال ۲", url=f"https://t.me/{CHANNEL_2[1:]}"),
+        InlineKeyboardButton("✅ عضویت زدم، برو بریم!", callback_data="check_membership")
+    )
+    return markup
+
+# استارت
 @bot.message_handler(commands=['start'])
-def send_welcome(message):
+def start(message):
     if is_user_member(message.from_user.id):
-        bot.reply_to(message, "سلام 👋 لینک پست اینستاگرام رو برام بفرست تا برات دانلودش کنم.")
+        bot.send_message(message.chat.id, "👋 سلام! لینک پست یا استوری یا ریلز اینستاگرام رو بفرست تا برات دانلود کنم 📥")
     else:
-        bot.reply_to(message, "⛔️ برای استفاده از ربات، اول باید عضو این دو کانال بشی:\n\n"
-                              "📢 " + CHANNEL_1 + "\n"
-                              "📢 " + CHANNEL_2 + "\n\n"
-                              "وقتی عضو شدی، دوباره /start رو بزن.")
+        bot.send_message(
+            message.chat.id,
+            "⛔ برای استفاده از ربات باید اول عضو دو کانال زیر بشی:",
+            reply_markup=join_keyboard()
+        )
 
+# بررسی عضویت بعد از زدن دکمه "عضویت زدم"
+@bot.callback_query_handler(func=lambda call: call.data == "check_membership")
+def check_membership(call):
+    if is_user_member(call.from_user.id):
+        bot.answer_callback_query(call.id, "✅ عضویت تأیید شد!")
+        bot.send_message(call.message.chat.id, "حالا لینک اینستا رو بفرست تا برات دانلود کنم 🌟")
+    else:
+        bot.answer_callback_query(call.id, "❌ هنوز عضو نشدی یا تلگرامت دیر آپدیته.")
+
+# هندل همه لینک‌ها
 @bot.message_handler(func=lambda message: True)
-def handle_message(message):
+def handle_link(message):
     if not is_user_member(message.from_user.id):
-        bot.reply_to(message, "⛔️ اول باید عضو کانالا بشی:\n" + CHANNEL_1 + "\n" + CHANNEL_2)
+        bot.send_message(message.chat.id, "⛔ اول عضو دو کانال شو:", reply_markup=join_keyboard())
         return
 
-    if 'instagram.com' not in message.text:
-        bot.reply_to(message, "لطفاً یه لینک اینستاگرام معتبر بفرست 📎")
+    if "instagram.com" not in message.text:
+        bot.send_message(message.chat.id, "❌ لطفاً یک لینک معتبر اینستاگرام بفرست.")
         return
 
+    bot.send_chat_action(message.chat.id, "upload_video")
     try:
-        api_url = f"https://api.telegraminsta.com/dl?link={message.text}"
-        r = requests.get(api_url).json()
-        bot.send_message(message.chat.id, "🔽 لینک دانلود:\n" + r['url'])
-    except:
-        bot.reply_to(message, "❌ مشکلی پیش اومد، لطفاً دوباره امتحان کن.")
+        res = requests.post(
+            "https://igram.io/api/ajaxSearch",
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                "User-Agent": "Mozilla/5.0"
+            },
+            data={"q": message.text.strip()}
+        )
+
+        json_data = res.json()
+        medias = json_data['data']['medias']
+
+        for media in medias:
+            url = media['url']
+            if '.mp4' in url:
+                bot.send_video(message.chat.id, url)
+            else:
+                bot.send_photo(message.chat.id, url)
+
+    except Exception as e:
+        bot.send_message(message.chat.id, "❌ متأسفم، مشکلی پیش اومد یا لینک مشکل داشت.")
 
 bot.infinity_polling()
+
