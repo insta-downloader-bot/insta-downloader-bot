@@ -61,28 +61,22 @@ def handle_link(message):
         return
 
     bot.send_chat_action(message.chat.id, "upload_video")
+
     try:
-        res = requests.post(
-            "https://igram.io/api/ajaxSearch",
-            headers={
-                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-                "User-Agent": "Mozilla/5.0"
-            },
-            data={"q": message.text.strip()}
-        )
+        insta_url = message.text.strip()
+        response = requests.get(f"https://saveinsta.ir/api/instagram.php?url={insta_url}")
+        data = response.json()
 
-        json_data = res.json()
-        medias = json_data['data']['medias']
-
-        for media in medias:
-            url = media['url']
-            if '.mp4' in url:
+        if data.get("url"):
+            url = data["url"]
+            if ".mp4" in url:
                 bot.send_video(message.chat.id, url)
             else:
                 bot.send_photo(message.chat.id, url)
+        else:
+            bot.send_message(message.chat.id, "❌ لینک پیدا نشد. ممکنه پست پرایوت یا ریلز محافظت‌شده باشه.")
 
     except Exception as e:
-        bot.send_message(message.chat.id, "❌ متأسفم، مشکلی پیش اومد یا لینک مشکل داشت.")
+        bot.send_message(message.chat.id, "❌ مشکلی در دریافت ویدیو پیش اومد.")
 
-bot.infinity_polling()
 
